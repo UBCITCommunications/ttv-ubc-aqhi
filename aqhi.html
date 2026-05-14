@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Air Quality — Metro Vancouver</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-weight: 300;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 6vh 6vw;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6vh;
+    padding-bottom: 2vh;
+    border-bottom: 1px solid #21262d;
+  }
+  .heading {
+    font-size: 2.6vw;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .subhead {
+    font-size: 0.9vw;
+    color: #7d8590;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 1vh;
+  }
+  .clock {
+    font-size: 1.3vw;
+    color: #c9d1d9;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.05em;
+  }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6vw;
+    align-items: center;
+  }
+
+  /* Left side — the number */
+  .reading {
+    text-align: left;
+  }
+  .label {
+    font-size: 1vw;
+    color: #7d8590;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 2vh;
+  }
+  .aqhi-number {
+    font-size: 22vw;
+    font-weight: 200;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    /* color set dynamically */
+  }
+  .risk-tag {
+    font-size: 2.2vw;
+    font-weight: 500;
+    margin-top: 3vh;
+    letter-spacing: -0.01em;
+  }
+
+  /* Right side — message */
+  .message {
+    font-size: 1.6vw;
+    line-height: 1.5;
+    color: #c9d1d9;
+    font-weight: 300;
+  }
+  .message strong {
+    color: #e6edf3;
+    font-weight: 500;
+  }
+  .health-line {
+    margin-top: 3vh;
+    padding-top: 3vh;
+    border-top: 1px solid #21262d;
+    font-size: 1.2vw;
+    color: #8b949e;
+  }
+
+  /* AQHI color scale — official Environment Canada palette */
+  .aqhi-1 { color: #00ccff; }
+  .aqhi-2 { color: #0099cc; }
+  .aqhi-3 { color: #006699; }
+  .aqhi-4 { color: #ffff00; }
+  .aqhi-5 { color: #ffcc00; }
+  .aqhi-6 { color: #ff9933; }
+  .aqhi-7 { color: #ff6600; }
+  .aqhi-8 { color: #ff0000; }
+  .aqhi-9 { color: #cc0000; }
+  .aqhi-10 { color: #990000; }
+  .aqhi-11 { color: #660066; }   /* 10+ */
+
+  footer {
+    margin-top: 4vh;
+    padding-top: 2vh;
+    border-top: 1px solid #21262d;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8vw;
+    color: #484f58;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .error, .loading {
+    margin: auto;
+    text-align: center;
+    color: #484f58;
+    font-size: 1.6vw;
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="subhead">Air Quality Health Index</div>
+    <div class="heading" id="location">Metro Vancouver</div>
+  </div>
+  <div class="clock" id="clock">--:--</div>
+</header>
+
+<main id="main">
+  <div class="loading">Loading air quality data…</div>
+</main>
+
+<footer>
+  <div>Source · Environment and Climate Change Canada</div>
+  <div id="updated">—</div>
+</footer>
+
+<script>
+const RELOAD_MS = 30 * 60 * 1000;  // every 30 min — AQHI changes hourly anyway
+const BBOX = '-123.30,49.18,-122.75,49.40';  // Metro Vancouver-ish
+
+// Official AQHI risk categories
+function riskCategory(aqhi) {
+  if (aqhi <= 3)  return { label: 'Low Risk',       bucket: 'low' };
+  if (aqhi <= 6)  return { label: 'Moderate Risk',  bucket: 'moderate' };
+  if (aqhi <= 10) return { label: 'High Risk',      bucket: 'high' };
+  return            { label: 'Very High Risk', bucket: 'very-high' };
+}
+
+// Health messages — general public guidance (Environment Canada wording)
+function healthMessage(bucket) {
+  switch (bucket) {
+    case 'low':
+      return {
+        headline: 'Ideal for outdoor activity.',
+        sub: 'No special precautions needed.',
+      };
+    case 'moderate':
+      return {
+        headline: 'No need to modify your usual outdoor activities — unless you experience symptoms like coughing or throat irritation.',
+        sub: 'At-risk groups: consider reducing strenuous outdoor activity if you have symptoms.',
+      };
+    case 'high':
+      return {
+        headline: 'Consider reducing or rescheduling strenuous outdoor activities.',
+        sub: 'At-risk groups (children, seniors, people with heart or lung conditions): reduce strenuous activity outdoors.',
+      };
+    case 'very-high':
+      return {
+        headline: 'Reduce or reschedule strenuous outdoor activities.',
+        sub: 'At-risk groups: avoid strenuous activities outdoors. Children and the elderly should also avoid outdoor physical exertion.',
+      };
+  }
+}
+
+async function loadData() {
+  try {
+    // Fetch the most recent observation in our bbox.
+    // sortby=-observation_datetime gets the freshest first.
+    const url = `https://api.weather.gc.ca/collections/aqhi-observations-realtime/items?bbox=${BBOX}&sortby=-observation_datetime&limit=10&f=json`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.features || data.features.length === 0) {
+      showError('No air quality data available for this region right now.');
+      return;
+    }
+
+    // Pick the freshest reading
+    const top = data.features[0];
+    const props = top.properties;
+    const aqhi = props.aqhi;
+    const stationName = props.location_name_en || 'Metro Vancouver';
+    const obsTime = new Date(props.observation_datetime);
+
+    render(aqhi, stationName, obsTime);
+  } catch (e) {
+    console.error('Fetch failed:', e);
+    showError('Unable to reach the air quality service.');
+  }
+}
+
+function render(aqhi, stationName, obsTime) {
+  const cat = riskCategory(aqhi);
+  const msg = healthMessage(cat.bucket);
+
+  // Display AQHI: integers normally, "10+" shown as "10+" string
+  const displayValue = aqhi >= 10 ? '10+' : String(Math.round(aqhi));
+  const colorClass   = aqhi >= 11 ? 'aqhi-11' : `aqhi-${Math.round(aqhi)}`;
+
+  document.getElementById('main').innerHTML = `
+    <div class="reading">
+      <div class="label">Current Reading</div>
+      <div class="aqhi-number ${colorClass}">${displayValue}</div>
+      <div class="risk-tag ${colorClass}">${cat.label}</div>
+    </div>
+    <div>
+      <div class="label">Health Advice</div>
+      <div class="message"><strong>${msg.headline}</strong></div>
+      <div class="health-line">${msg.sub}</div>
+    </div>
+  `;
+
+  // Footer
+  document.getElementById('location').textContent = stationName;
+  document.getElementById('updated').textContent =
+    'Observed · ' + obsTime.toLocaleTimeString('en-CA', {hour:'2-digit', minute:'2-digit'});
+}
+
+function showError(text) {
+  document.getElementById('main').innerHTML = `<div class="error">${text}</div>`;
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-CA', {hour:'2-digit', minute:'2-digit'});
+}
+
+loadData();
+updateClock();
+setInterval(loadData, RELOAD_MS);
+setInterval(updateClock, 30000);
+</script>
+</body>
+</html>
