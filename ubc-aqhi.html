@@ -171,18 +171,18 @@
   .c10 { background: #990000; color: #fff; }
   .c11 { background: #660066; color: #fff; }
 
-  /* Color the hero number/risk tag — matches scale palette, with some lightening for dark-bg legibility */
+  /* Color the hero number/risk tag — uses same palette as scale */
   .aqhi-1,  .risk-1   { color: #00ccff; }
   .aqhi-2,  .risk-2   { color: #0099cc; }
-  .aqhi-3,  .risk-3   { color: #4ba3c9; }
+  .aqhi-3,  .risk-3   { color: #006699; }
   .aqhi-4,  .risk-4   { color: #ffff00; }
   .aqhi-5,  .risk-5   { color: #ffcc00; }
   .aqhi-6,  .risk-6   { color: #ff9933; }
   .aqhi-7,  .risk-7   { color: #ff6600; }
-  .aqhi-8,  .risk-8   { color: #ff4040; }
-  .aqhi-9,  .risk-9   { color: #ff3030; }
-  .aqhi-10, .risk-10  { color: #ff2020; }
-  .aqhi-11, .risk-11  { color: #cc66cc; }
+  .aqhi-8,  .risk-8   { color: #ff0000; }
+  .aqhi-9,  .risk-9   { color: #cc0000; }
+  .aqhi-10, .risk-10  { color: #990000; }
+  .aqhi-11, .risk-11  { color: #660066; }
 
   footer {
     margin-top: 2vh;
@@ -302,6 +302,16 @@ async function loadData() {
       const fcRes = await fetch(fcUrl);
       const fcData = await fcRes.json();
       const now = Date.now();
+
+      console.log('=== FORECAST DEBUG ===');
+      console.log('Observation location_id:', locationId);
+      console.log('Total forecast features returned:', fcData.features?.length || 0);
+      if (fcData.features && fcData.features.length > 0) {
+        const uniqueLocs = [...new Set(fcData.features.map(f => f.properties.location_id))];
+        console.log('Unique location_ids in forecast feed:', uniqueLocs);
+        console.log('Sample forecast item:', fcData.features[0].properties);
+      }
+
       forecasts = (fcData.features || [])
         .filter(f => f.properties.location_id === locationId)
         .filter(f => new Date(f.properties.forecast_datetime).getTime() > now)
@@ -310,6 +320,11 @@ async function loadData() {
           value: f.properties.aqhi,
         }))
         .sort((a, b) => a.time - b.time);
+
+      console.log('Forecasts after filtering to our location & future-only:', forecasts.length);
+      forecasts.slice(0, 5).forEach(f => {
+        console.log('  ', f.time.toString(), 'AQHI', f.value);
+      });
     } catch (e) {
       console.warn('Forecast fetch failed (non-fatal):', e);
     }
@@ -325,39 +340,34 @@ function pickForecastSlots(forecasts) {
   if (forecasts.length === 0) return [];
 
   const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
 
-  // Tonight: first forecast point between 18:00 and 04:00 (today/early next day) within 12h
-  const tonight = forecasts.find(f => {
+  // Slot 1: "Tonight" if there's any forecast point >= 18:00 today within 24h
+  // Otherwise: "Next" — the very next upcoming forecast
+  let slot1 = forecasts.find(f => {
     const h = f.time.getHours();
-    const within12h = (f.time - now) < 12 * 3600 * 1000;
-    return within12h && (h >= 18 || h <= 4);
+    const within24h = (f.time - now) < 24 * 3600 * 1000;
+    return within24h && h >= 18;
   });
-
-  // Tomorrow: forecast point on tomorrow's date, roughly midday
-  const tomorrowSlot = forecasts.find(f => {
-    return f.time.getDate() === tomorrow.getDate()
-        && f.time.getHours() >= 10 && f.time.getHours() <= 16;
-  });
-
-  const out = [];
-  if (tonight)      out.push({ label: 'Tonight',  value: tonight.value });
-  if (tomorrowSlot) out.push({ label: 'Tomorrow', value: tomorrowSlot.value });
-
-  // Fallback if we couldn't find good slots — show the first two upcoming
-  if (out.length < 2) {
-    for (const f of forecasts) {
-      if (out.length >= 2) break;
-      if (!out.find(o => o.value === f.value)) {
-        out.push({
-          label: f.time.toLocaleDateString('en-CA', { weekday: 'short' }),
-          value: f.value
-        });
-      }
-    }
+  let slot1Label = 'Tonight';
+  if (!slot1) {
+    slot1 = forecasts[0];
+    slot1Label = 'Next';
   }
 
+  // Slot 2: "Tomorrow" — any forecast on tomorrow's calendar date, prefer afternoon
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const tomorrowForecasts = forecasts.filter(f =>
+    f.time.getDate() === tomorrow.getDate() &&
+    f.time.getMonth() === tomorrow.getMonth()
+  );
+  let slot2 = tomorrowForecasts.find(f => f.time.getHours() >= 12 && f.time.getHours() <= 18)
+           || tomorrowForecasts[0]
+           || forecasts[forecasts.length - 1];   // fallback: furthest available
+
+  const out = [];
+  if (slot1) out.push({ label: slot1Label, value: slot1.value });
+  if (slot2 && slot2 !== slot1) out.push({ label: 'Tomorrow', value: slot2.value });
   return out.slice(0, 2);
 }
 
