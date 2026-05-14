@@ -298,7 +298,7 @@ async function loadData() {
     // Forecasts — non-fatal if it fails
     let forecasts = [];
     try {
-      const fcUrl = `https://api.weather.gc.ca/collections/aqhi-forecasts-realtime/items?bbox=${BBOX}&sortby=forecast_datetime&limit=30&f=json`;
+      const fcUrl = `https://api.weather.gc.ca/collections/aqhi-forecasts-realtime/items?bbox=${BBOX}&sortby=-forecast_datetime&limit=50&f=json`;
       const fcRes = await fetch(fcUrl);
       const fcData = await fcRes.json();
       const now = Date.now();
@@ -319,7 +319,7 @@ async function loadData() {
           time: new Date(f.properties.forecast_datetime),
           value: f.properties.aqhi,
         }))
-        .sort((a, b) => a.time - b.time);
+        .sort((a, b) => a.time - b.time);   // always ascending after filter
 
       console.log('Forecasts after filtering to our location & future-only:', forecasts.length);
       forecasts.slice(0, 5).forEach(f => {
