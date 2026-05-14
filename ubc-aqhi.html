@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Air Quality — UBC Vancouver Campus</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-weight: 300;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 4vh 5vw 3vh 5vw;
+  }
+
+  header {
+    margin-bottom: 4vh;
+    padding-bottom: 2vh;
+    border-bottom: 1px solid #21262d;
+  }
+  .subhead {
+    font-size: 0.9vw;
+    color: #7d8590;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 0.8vh;
+  }
+  .heading {
+    font-size: 2.4vw;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 5vw;
+    align-items: center;
+    min-height: 0;
+  }
+
+  /* === LEFT: hero reading === */
+  .reading { text-align: left; }
+  .label {
+    font-size: 0.85vw;
+    color: #7d8590;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 1.5vh;
+  }
+  .aqhi-number {
+    font-size: 18vw;
+    font-weight: 200;
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .risk-tag {
+    font-size: 2vw;
+    font-weight: 500;
+    margin-top: 2.5vh;
+    letter-spacing: -0.01em;
+  }
+
+  /* === RIGHT: message + forecast === */
+  .message-block { min-width: 0; }
+  .message {
+    font-size: 1.5vw;
+    line-height: 1.45;
+    color: #e6edf3;
+    font-weight: 500;
+  }
+  .health-line {
+    margin-top: 2.5vh;
+    padding-top: 2.5vh;
+    border-top: 1px solid #21262d;
+    font-size: 1.1vw;
+    color: #8b949e;
+    line-height: 1.5;
+  }
+
+  .forecast {
+    margin-top: 3vh;
+    padding-top: 2.5vh;
+    border-top: 1px solid #21262d;
+    display: flex;
+    gap: 3vw;
+  }
+  .forecast-item .when {
+    font-size: 0.8vw;
+    color: #7d8590;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.8vh;
+  }
+  .forecast-item .value {
+    font-size: 2.2vw;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* === AQHI scale band (footer) === */
+  .scale-band {
+    margin-top: 3vh;
+    padding-top: 2vh;
+    border-top: 1px solid #21262d;
+  }
+  .scale-row {
+    display: grid;
+    grid-template-columns: repeat(11, 1fr);
+    gap: 0.4vw;
+    margin-bottom: 1.2vh;
+  }
+  .scale-cell {
+    aspect-ratio: 1.6 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4vw;
+    font-weight: 600;
+    color: #0d1117;
+    border-radius: 0.3vw;
+    position: relative;
+    opacity: 0.55;
+    transition: opacity 0.3s, transform 0.3s;
+    font-variant-numeric: tabular-nums;
+  }
+  .scale-cell.active {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 1.8vw rgba(255,255,255,0.15);
+    z-index: 2;
+  }
+  .scale-cell.active::after {
+    content: '';
+    position: absolute;
+    top: -1vh;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 0.6vw solid transparent;
+    border-right: 0.6vw solid transparent;
+    border-bottom: 0.7vw solid #e6edf3;
+  }
+
+  .scale-categories {
+    display: grid;
+    grid-template-columns: 3fr 3fr 4fr 1fr;
+    gap: 0.4vw;
+    font-size: 0.78vw;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #7d8590;
+    text-align: center;
+  }
+
+  /* AQHI palette — official Environment Canada */
+  .c1  { background: #00ccff; }
+  .c2  { background: #0099cc; }
+  .c3  { background: #006699; color: #fff; }
+  .c4  { background: #ffff00; }
+  .c5  { background: #ffcc00; }
+  .c6  { background: #ff9933; }
+  .c7  { background: #ff6600; }
+  .c8  { background: #ff0000; color: #fff; }
+  .c9  { background: #cc0000; color: #fff; }
+  .c10 { background: #990000; color: #fff; }
+  .c11 { background: #660066; color: #fff; }
+
+  /* Color the hero number/risk tag — matches scale palette, with some lightening for dark-bg legibility */
+  .aqhi-1,  .risk-1   { color: #00ccff; }
+  .aqhi-2,  .risk-2   { color: #0099cc; }
+  .aqhi-3,  .risk-3   { color: #4ba3c9; }
+  .aqhi-4,  .risk-4   { color: #ffff00; }
+  .aqhi-5,  .risk-5   { color: #ffcc00; }
+  .aqhi-6,  .risk-6   { color: #ff9933; }
+  .aqhi-7,  .risk-7   { color: #ff6600; }
+  .aqhi-8,  .risk-8   { color: #ff4040; }
+  .aqhi-9,  .risk-9   { color: #ff3030; }
+  .aqhi-10, .risk-10  { color: #ff2020; }
+  .aqhi-11, .risk-11  { color: #cc66cc; }
+
+  footer {
+    margin-top: 2vh;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75vw;
+    color: #484f58;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .error, .loading {
+    margin: auto;
+    text-align: center;
+    color: #484f58;
+    font-size: 1.5vw;
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="subhead">Air Quality Health Index</div>
+  <div class="heading">Metro Vancouver - NW · UBC Vancouver Campus</div>
+</header>
+
+<main id="main">
+  <div class="loading">Loading air quality data…</div>
+</main>
+
+<div class="scale-band">
+  <div class="scale-row" id="scale"></div>
+  <div class="scale-categories">
+    <div>Low Risk · 1–3</div>
+    <div>Moderate Risk · 4–6</div>
+    <div>High Risk · 7–10</div>
+    <div>Very High · 10+</div>
+  </div>
+</div>
+
+<footer>
+  <div>Source · Environment and Climate Change Canada</div>
+  <div id="updated">—</div>
+</footer>
+
+<script>
+const RELOAD_MS = 30 * 60 * 1000;
+const BBOX = '-123.30,49.18,-122.95,49.32';   // NW Metro Vancouver — UBC area
+
+function colorClass(aqhi) {
+  if (aqhi >= 11) return 11;
+  return Math.max(1, Math.min(10, Math.round(aqhi)));
+}
+
+function riskCategory(aqhi) {
+  if (aqhi <= 3)  return 'Low Risk';
+  if (aqhi <= 6)  return 'Moderate Risk';
+  if (aqhi <= 10) return 'High Risk';
+  return 'Very High Risk';
+}
+
+function healthMessage(aqhi) {
+  if (aqhi <= 3) return {
+    headline: 'Ideal for outdoor activity.',
+    sub: 'No special precautions needed.',
+  };
+  if (aqhi <= 6) return {
+    headline: 'No need to modify usual outdoor activities — unless you experience symptoms.',
+    sub: 'At-risk groups: consider reducing strenuous activity outdoors if you have symptoms like coughing or throat irritation.',
+  };
+  if (aqhi <= 10) return {
+    headline: 'Consider reducing or rescheduling strenuous outdoor activities.',
+    sub: 'At-risk groups — children, seniors, people with heart or lung conditions: reduce strenuous activity outdoors.',
+  };
+  return {
+    headline: 'Reduce or reschedule strenuous outdoor activities.',
+    sub: 'At-risk groups: avoid outdoor exertion. Children and the elderly should also avoid strenuous physical activity outdoors.',
+  };
+}
+
+function buildScale() {
+  const labels = ['1','2','3','4','5','6','7','8','9','10','10+'];
+  document.getElementById('scale').innerHTML = labels.map((label, i) => {
+    return `<div class="scale-cell c${i+1}" data-index="${i+1}">${label}</div>`;
+  }).join('');
+}
+
+function highlightScale(aqhi) {
+  const target = colorClass(aqhi);
+  document.querySelectorAll('.scale-cell').forEach(el => {
+    const idx = parseInt(el.dataset.index, 10);
+    el.classList.toggle('active', idx === target);
+  });
+}
+
+async function loadData() {
+  try {
+    const obsUrl = `https://api.weather.gc.ca/collections/aqhi-observations-realtime/items?bbox=${BBOX}&sortby=-observation_datetime&limit=10&f=json`;
+    const obsRes = await fetch(obsUrl);
+    const obsData = await obsRes.json();
+
+    if (!obsData.features || obsData.features.length === 0) {
+      showError('No air quality data available for this region right now.');
+      return;
+    }
+
+    const top = obsData.features[0];
+    const aqhi = top.properties.aqhi;
+    const obsTime = new Date(top.properties.observation_datetime);
+    const locationId = top.properties.location_id;
+
+    // Forecasts — non-fatal if it fails
+    let forecasts = [];
+    try {
+      const fcUrl = `https://api.weather.gc.ca/collections/aqhi-forecasts-realtime/items?bbox=${BBOX}&sortby=forecast_datetime&limit=30&f=json`;
+      const fcRes = await fetch(fcUrl);
+      const fcData = await fcRes.json();
+      const now = Date.now();
+      forecasts = (fcData.features || [])
+        .filter(f => f.properties.location_id === locationId)
+        .filter(f => new Date(f.properties.forecast_datetime).getTime() > now)
+        .map(f => ({
+          time: new Date(f.properties.forecast_datetime),
+          value: f.properties.aqhi,
+        }))
+        .sort((a, b) => a.time - b.time);
+    } catch (e) {
+      console.warn('Forecast fetch failed (non-fatal):', e);
+    }
+
+    render(aqhi, obsTime, forecasts);
+  } catch (e) {
+    console.error('Fetch failed:', e);
+    showError('Unable to reach the air quality service.');
+  }
+}
+
+function pickForecastSlots(forecasts) {
+  if (forecasts.length === 0) return [];
+
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+
+  // Tonight: first forecast point between 18:00 and 04:00 (today/early next day) within 12h
+  const tonight = forecasts.find(f => {
+    const h = f.time.getHours();
+    const within12h = (f.time - now) < 12 * 3600 * 1000;
+    return within12h && (h >= 18 || h <= 4);
+  });
+
+  // Tomorrow: forecast point on tomorrow's date, roughly midday
+  const tomorrowSlot = forecasts.find(f => {
+    return f.time.getDate() === tomorrow.getDate()
+        && f.time.getHours() >= 10 && f.time.getHours() <= 16;
+  });
+
+  const out = [];
+  if (tonight)      out.push({ label: 'Tonight',  value: tonight.value });
+  if (tomorrowSlot) out.push({ label: 'Tomorrow', value: tomorrowSlot.value });
+
+  // Fallback if we couldn't find good slots — show the first two upcoming
+  if (out.length < 2) {
+    for (const f of forecasts) {
+      if (out.length >= 2) break;
+      if (!out.find(o => o.value === f.value)) {
+        out.push({
+          label: f.time.toLocaleDateString('en-CA', { weekday: 'short' }),
+          value: f.value
+        });
+      }
+    }
+  }
+
+  return out.slice(0, 2);
+}
+
+function render(aqhi, obsTime, forecasts) {
+  const displayValue = aqhi >= 10 ? '10+' : String(Math.round(aqhi));
+  const ccls = colorClass(aqhi);
+  const msg = healthMessage(aqhi);
+  const fc = pickForecastSlots(forecasts);
+
+  let forecastHTML = '';
+  if (fc.length > 0) {
+    forecastHTML = `
+      <div class="forecast">
+        ${fc.map(f => `
+          <div class="forecast-item">
+            <div class="when">${f.label}</div>
+            <div class="value aqhi-${colorClass(f.value)}">${f.value >= 10 ? '10+' : Math.round(f.value)}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  document.getElementById('main').innerHTML = `
+    <div class="reading">
+      <div class="label">Current Reading</div>
+      <div class="aqhi-number aqhi-${ccls}">${displayValue}</div>
+      <div class="risk-tag risk-${ccls}">${riskCategory(aqhi)}</div>
+    </div>
+    <div class="message-block">
+      <div class="label">Health Advice</div>
+      <div class="message">${msg.headline}</div>
+      <div class="health-line">${msg.sub}</div>
+      ${forecastHTML}
+    </div>
+  `;
+
+  highlightScale(aqhi);
+
+  document.getElementById('updated').textContent =
+    'Observed · ' + obsTime.toLocaleTimeString('en-CA', {hour:'2-digit', minute:'2-digit'});
+}
+
+function showError(text) {
+  document.getElementById('main').innerHTML = `<div class="error">${text}</div>`;
+}
+
+buildScale();
+loadData();
+setInterval(loadData, RELOAD_MS);
+</script>
+</body>
+</html>
