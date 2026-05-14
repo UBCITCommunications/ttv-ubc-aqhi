@@ -303,15 +303,6 @@ async function loadData() {
       const fcData = await fcRes.json();
       const now = Date.now();
 
-      console.log('=== FORECAST DEBUG ===');
-      console.log('Observation location_id:', locationId);
-      console.log('Total forecast features returned:', fcData.features?.length || 0);
-      if (fcData.features && fcData.features.length > 0) {
-        const uniqueLocs = [...new Set(fcData.features.map(f => f.properties.location_id))];
-        console.log('Unique location_ids in forecast feed:', uniqueLocs);
-        console.log('Sample forecast item:', fcData.features[0].properties);
-      }
-
       forecasts = (fcData.features || [])
         .filter(f => f.properties.location_id === locationId)
         .filter(f => new Date(f.properties.forecast_datetime).getTime() > now)
@@ -320,11 +311,6 @@ async function loadData() {
           value: f.properties.aqhi,
         }))
         .sort((a, b) => a.time - b.time);   // always ascending after filter
-
-      console.log('Forecasts after filtering to our location & future-only:', forecasts.length);
-      forecasts.slice(0, 5).forEach(f => {
-        console.log('  ', f.time.toString(), 'AQHI', f.value);
-      });
     } catch (e) {
       console.warn('Forecast fetch failed (non-fatal):', e);
     }
